@@ -1,0 +1,18 @@
+config BR2_PACKAGE_ABOOTIMG
+	bool "abootimg"
+	select BR2_PACKAGE_UTIL_LINUX
+	select BR2_PACKAGE_UTIL_LINUX_LIBBLKID
+	select BR2_PACKAGE_UTIL_LINUX_LIBUUID
+	help
+	  Tool to read/write/update android boot images
+	  
+	  Android devices use a special partition format to boot any
+	  operating system on the devices. These boot-images contain
+	  a kernel image, a ramdisk, optionally a 2nd stage boot loader
+	  and the commandline passed to the kernel when booting.
+	  The original mkbootimg from Android can only create these images
+	  where abootimg can also extract and modify them.
+	  Handling android boot images is necessary when bringing other
+	  operating systems to android devices.
+
+	  https://github.com/ggrandou/abootimg

@@ -1,2 +1,0 @@
-bootargs=console=tty0 console=ttyS0,115200n8 no_console_suspend=1 ignore_loglevel earlyprintk initcall_debug drm.debug=0xff
-bootcmd=bootz @KERNEL @INITRD @FDT

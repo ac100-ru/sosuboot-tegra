@@ -1,3 +1,4 @@
 source "$BR2_EXTERNAL/packages/cbootimage/Config.in"
+source "$BR2_EXTERNAL/packages/cbootimage/Config.in.host"
 source "$BR2_EXTERNAL/packages/abootimg/Config.in"
 source "$BR2_EXTERNAL/packages/makeself/Config.in.host"

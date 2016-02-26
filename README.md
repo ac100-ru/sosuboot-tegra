@@ -3,6 +3,10 @@ This is buildroot outside of tree board config for small tegra20 recovery system
 
 At this moment it contain config only for Toshiba AC100 (paz00)
 
+## Build enviroment
+Compare your build system to Buildroot requirements
+> https://buildroot.org/downloads/manual/manual.html#requirement
+
 ## Get sources
 Create working directory for example:
 > mkdir sosuboot  

@@ -36,5 +36,5 @@ To load it on paz00, you need to switch device to RCM mode, if device already
 use U-Boot use enterrcm command in U-Boot console or with hardware keys combo  
 Ctrl+Esc+Power button. Then run tegrarcm tool:  
 
-> tegrarcm --bct=<bct file name> readbct  
-> tegrarcm --bct=<bct file name> --loadaddr=0x108000 --bootloader=<path to sos-uboot.bin>  
+> tegrarcm --bct=bctfilename readbct  
+> tegrarcm --bct=bctfilename --loadaddr=0x108000 --bootloader=path/to/sos-uboot.bin  

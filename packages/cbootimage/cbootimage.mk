@@ -11,3 +11,4 @@ CBOOTIMAGE_LICENSE = GPLv2
 CBOOTIMAGE_AUTORECONF = YES
 
 $(eval $(autotools-package))
+$(eval $(host-autotools-package))

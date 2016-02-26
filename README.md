@@ -5,8 +5,8 @@ At this moment it contain config only for Toshiba AC100 (paz00)
 
 ## Get sources
 Create working directory for example:
-> mkdir sosuboot
-> cd sosuboot
+> mkdir sosuboot  
+> cd sosuboot  
 
 Download buildroot: 
 > git clone git://git.buildroot.net/buildroot

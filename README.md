@@ -27,3 +27,14 @@ Use sosuboot-tegra20-paz00 defconfig:
 
 Start compilation
 > make
+
+## RCM image
+Resulting image for Tegra RCM loading you can find in output/images  
+under sos-uboot.bin file name.  
+
+To load it on paz00, you need to switch device to RCM mode, if device already  
+use U-Boot use enterrcm command in U-Boot console or with hardware keys combo  
+Ctrl+Esc+Power button. Then run tegrarcm tool:  
+
+> tegrarcm --bct=<bct file name> readbct  
+> tegrarcm --bct=<bct file name> --loadaddr=0x108000 --bootloader=<path to sos-uboot.bin>  

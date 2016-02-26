@@ -4,8 +4,7 @@
 #
 ################################################################################
 
-# Stick with git snapshot as latest release misses bugfixes for signing
-CBOOTIMAGE_VERSION = e7d840c
+CBOOTIMAGE_VERSION = v1.7
 CBOOTIMAGE_SITE = https://github.com/NVIDIA/cbootimage.git
 CBOOTIMAGE_SITE_METHOD = git
 CBOOTIMAGE_LICENSE = GPLv2

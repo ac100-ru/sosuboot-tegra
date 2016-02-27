@@ -1,0 +1,7 @@
+config BR2_PACKAGE_AC100_SELF_INSTALLERS
+	bool "ac100-self-installers"
+	select BR2_PACKAGE_HOST_MAKESELF
+	help
+	  Scripts to replace factory bootloader on Toshiba AC100 with U-Boot.
+
+	  https://github.com/Stuw/ac100-self-installers

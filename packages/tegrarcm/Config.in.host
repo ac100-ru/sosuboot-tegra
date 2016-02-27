@@ -1,0 +1,7 @@
+config BR2_PACKAGE_HOST_TEGRARCM
+	bool "host tegrarcm"
+	help
+	  This program is used to send code to a Tegra device in recovery
+	  mode.
+
+	  https://github.com/NVIDIA/tegrarcm

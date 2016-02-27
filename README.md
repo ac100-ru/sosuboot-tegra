@@ -1,4 +1,4 @@
-# Sosuboot-tegra20-paz00
+# Sosuboot-tegra
 This is Buildroot outside of tree board config for small Tegra recovery system.
 
 At this moment it contain config only for Toshiba AC100 (tegra20-paz00)

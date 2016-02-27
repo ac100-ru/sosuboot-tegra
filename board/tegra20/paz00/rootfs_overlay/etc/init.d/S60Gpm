@@ -1,0 +1,47 @@
+#!/bin/sh
+#
+# Start GPM
+#
+PIDFILE=/var/run/gpm.pid
+GPM=/usr/sbin/gpm
+CMDLINE="-m /dev/input/mice -t ps2"
+
+test -x $GPM || exit 0
+
+if [ "$(id -u)" != "0" ]
+then
+  echo "You must be root to start, stop or restart gpm."
+  exit 1
+fi
+
+gpm_start () {
+  echo -n "Starting mouse interface server: gpm"
+  start-stop-daemon --start --quiet --exec $GPM -- $CMDLINE
+  echo "."
+  return 0
+}
+
+gpm_stop () {
+  echo -n "Stopping mouse interface server: gpm"
+  /usr/sbin/gpm -k
+  echo "."
+}
+
+case "$1" in
+ start)
+	gpm_start
+	;;
+  stop)
+	gpm_stop	
+	;;
+  restart)
+	gpm_stop
+	sleep 3
+	gpm_start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

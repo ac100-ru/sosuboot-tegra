@@ -1,11 +1,14 @@
 # Sosuboot-tegra20-paz00
-This is buildroot outside of tree board config for small tegra20 recovery system.
+This is Buildroot outside of tree board config for small Tegra recovery system.
 
-At this moment it contain config only for Toshiba AC100 (paz00)
+At this moment it contain config only for Toshiba AC100 (tegra20-paz00)
 
 ## Build enviroment
 Compare your build system to Buildroot requirements
 > https://buildroot.org/downloads/manual/manual.html#requirement
+
+## Extra dependencies
+Host tegrarcm package require also libcryptopp.
 
 ## Get sources
 Create working directory for example:

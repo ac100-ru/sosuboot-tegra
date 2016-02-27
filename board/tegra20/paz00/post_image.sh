@@ -4,7 +4,7 @@
 #author      : zombah
 #date        : 24/02/2016
 #version     : 0.1
-#usage       : post_image.sh <BINARIES_DIR> <BR2_EXTERNAL> <BR2_VERSION_FULL>
+#usage       : post_image.sh <BINARIES_DIR> <BR2_EXTERNAL> <BR2_VERSION_FULL> <BINARIES_DIR>
 #--------------------------------------------------------------------------------
 
 die() {
@@ -12,7 +12,7 @@ die() {
     exit 1
 }
 
-[ 3 -ne $# ] && die "invalid number of parameters $# (expected 3)"
+[ 4 -ne $# ] && die "invalid number of parameters $# (expected 4)"
 
 IMAGE_DIR=$1
 BOARD_DIR=$2

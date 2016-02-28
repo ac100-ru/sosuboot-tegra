@@ -1,0 +1,6 @@
+config BR2_PACKAGE_ANDROID_INSTALLER
+	bool "android-installer"
+	help
+	  Script to help with Android installation on Toshiba AC100
+
+	  https://github.com/ac100-ru/android-installer

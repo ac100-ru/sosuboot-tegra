@@ -19,14 +19,14 @@ Download buildroot:
 > git clone git://git.buildroot.net/buildroot
 
 Download this repository:
-> git clone git://github.com/ac100-ru/sosuboot-tegra20-paz00
+> git clone git://github.com/ac100-ru/sosuboot-tegra
 
 ## Compile
 Switch to buildroot directory:
 > cd buildroot
 
 Use sosuboot-tegra20-paz00 defconfig:
-> make BR2_EXTERNAL=../sosuboot-tegra20-paz00 tegra20-paz00_defconfig
+> make BR2_EXTERNAL=../sosuboot-tegra tegra20-paz00_defconfig
 
 Start compilation
 > make

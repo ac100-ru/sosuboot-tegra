@@ -17,8 +17,8 @@ define AC100_SELF_INSTALLERS_BUILD_CMDS
 endef
 
 define AC100_SELF_INSTALLERS_INSTALL_TARGET_CMDS
-       $(INSTALL) -m 0755 $(@D)/paz00-switch-to-uboot $(TARGET_DIR)/usr/bin/switch-to-uboot
-       $(INSTALL) -m 0755 $(@D)/paz00-partitioner $(TARGET_DIR)/usr/bin/partitioner
+       $(INSTALL) -m 0755 $(@D)/paz00-switch-to-uboot $(TARGET_DIR)/usr/local/bin/switch-to-uboot
+       $(INSTALL) -m 0755 $(@D)/paz00-partitioner $(TARGET_DIR)/usr/local/bin/partitioner
 endef
 
 $(eval $(generic-package))

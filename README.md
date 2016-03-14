@@ -25,8 +25,12 @@ Download this repository:
 Switch to buildroot directory:
 > cd buildroot
 
-Use sosuboot-tegra20-paz00 defconfig:
+
+For sosuboot-tegra20-paz00 RCM image use defconfig:
 > make BR2_EXTERNAL=../sosuboot-tegra tegra20-paz00_defconfig
+
+For SD card image use ext_defconfig:
+> make BR2_EXTERNAL=../sosuboot-tegra tegra20-paz00_ext_defconfig
 
 Start compilation
 > make
@@ -41,3 +45,10 @@ Ctrl+Esc+Power button. Then run tegrarcm tool:
 
 > tegrarcm --bct=bctfilename readbct  
 > tegrarcm --bct=bctfilename --loadaddr=0x108000 --bootloader=path/to/sos-uboot.bin  
+
+## SDcard image  
+Resulting image for SD card writing you can find in output/images  
+under sdcard.img file name.  
+
+To install it simply write to SD card, insert it into AC100 and boot it.  
+> sudo dd if=sdcard.img of=/dev/xxxx bs=4M; sync  

@@ -1,0 +1,12 @@
+diff --git a/drivers/staging/nvec/nvec.c b/drivers/staging/nvec/nvec.c
+index 4ae44a5..451df8a 100644
+--- a/drivers/staging/nvec/nvec.c
++++ b/drivers/staging/nvec/nvec.c
+@@ -761,6 +761,7 @@ static void nvec_power_off(void)
+ 
+ 	nvec_toggle_global_events(nvec_power_handle, false);
+ 	nvec_write_async(nvec_power_handle, ap_pwr_down, 2);
++	msleep(10000); /* Nvec need more time for power_off */
+ }
+ 
+ /*

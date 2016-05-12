@@ -30,7 +30,7 @@ For sosuboot-tegra20-paz00 RCM image use defconfig:
 > make BR2_EXTERNAL=../sosuboot-tegra tegra20-paz00_defconfig
 
 For SD card image use ext_defconfig:
-> make BR2_EXTERNAL=../sosuboot-tegra tegra20-paz00_ext_defconfig
+> make BR2_EXTERNAL=../sosuboot-tegra tegra20-paz00_ext4_defconfig
 
 Start compilation
 > make

@@ -51,4 +51,4 @@ Resulting image for SD card writing you can find in output/images
 under sdcard.img file name.  
 
 To install it simply write to SD card, insert it into AC100 and boot it.  
-> sudo dd if=sdcard.img of=/dev/xxxx bs=4M; sync  
+> sudo dd if=sos-uboot-sdcard.img of=/dev/xxxx bs=4M; sync  

@@ -4,7 +4,7 @@
 #author      : zombah
 #date        : 24/02/2016
 #version     : 0.1
-#usage       : post_image.sh <BINARIES_DIR> <BR2_EXTERNAL> <BR2_VERSION_FULL> <BINARIES_DIR>
+#usage       : post_image.sh <BINARIES_DIR> <BR2_EXTERNAL_SOSUBOOT_TEGRA_PATH> <BR2_VERSION_FULL> <BINARIES_DIR>
 #--------------------------------------------------------------------------------
 
 die() {

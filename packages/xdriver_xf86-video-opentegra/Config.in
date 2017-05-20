@@ -1,0 +1,18 @@
+config BR2_PACKAGE_XDRIVER_XF86_VIDEO_OPENTEGRA
+        bool "xf86-video-opentegra"
+        depends on BR2_arm
+        select BR2_PACKAGE_LIBDRM
+        select BR2_PACKAGE_LIBDRM_TEGRA
+        select BR2_PACKAGE_XPROTO_XPROTO
+        select BR2_PACKAGE_XPROTO_RANDRPROTO
+        select BR2_PACKAGE_XPROTO_XF86DRIPROTO
+        help
+          Open-source X.org graphics driver for NVIDIA Tegra
+
+          To use this driver, add correct configuration to your
+          /etc/X11/xorg.conf:
+
+          Section "Device"
+            [...]
+            Driver          "opentegra"
+          EndSection

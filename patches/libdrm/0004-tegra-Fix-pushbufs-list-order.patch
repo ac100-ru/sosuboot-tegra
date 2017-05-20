@@ -1,0 +1,29 @@
+From 2c395bb42efe38fa53bda3aa601d4124465d63b3 Mon Sep 17 00:00:00 2001
+From: Dmitry Osipenko <digetx@gmail.com>
+Date: Sun, 14 May 2017 13:05:33 +0300
+Subject: [PATCH 4/5] tegra: Fix pushbufs list order
+
+It was inverted, causing a failure on a job submission if there is more
+than one pushbuf contained in the job.
+
+Signed-off-by: Dmitry Osipenko <digetx@gmail.com>
+---
+ tegra/pushbuf.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tegra/pushbuf.c b/tegra/pushbuf.c
+index 2ffdbc0a..61190ba3 100644
+--- a/tegra/pushbuf.c
++++ b/tegra/pushbuf.c
+@@ -71,7 +71,7 @@ int drm_tegra_pushbuf_new(struct drm_tegra_pushbuf **pushbufp,
+ 	pushbuf->start = pushbuf->base.ptr = (void*)((char*)ptr + offset);
+ 	pushbuf->offset = offset;
+ 
+-	DRMLISTADD(&pushbuf->list, &job->pushbufs);
++	DRMLISTADDTAIL(&pushbuf->list, &job->pushbufs);
+ 	job->num_pushbufs++;
+ 
+ 	*pushbufp = &pushbuf->base;
+-- 
+2.12.0
+

@@ -1,0 +1,29 @@
+From 9fa2e5b7cfe49d731acc87db66661d87fb98de27 Mon Sep 17 00:00:00 2001
+From: Dmitry Osipenko <digetx@gmail.com>
+Date: Mon, 15 May 2017 19:25:21 +0300
+Subject: [PATCH 5/5] tegra: Initialize jobs syncpoint to the channels one
+
+The jobs syncpot initialization is absent, so the syncpoint ID 0 is used
+regardless of the channels client. That's not good for the case of
+multiple channels working simultaneously.
+
+Signed-off-by: Dmitry Osipenko <digetx@gmail.com>
+---
+ tegra/job.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tegra/job.c b/tegra/job.c
+index d26d35dd..47db3370 100644
+--- a/tegra/job.c
++++ b/tegra/job.c
+@@ -64,6 +64,7 @@ int drm_tegra_job_new(struct drm_tegra_job **jobp,
+ 
+ 	DRMINITLISTHEAD(&job->pushbufs);
+ 	job->channel = channel;
++	job->syncpt = channel->syncpt;
+ 
+ 	*jobp = job;
+ 
+-- 
+2.12.0
+

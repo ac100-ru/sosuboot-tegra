@@ -1,0 +1,829 @@
+From bded9b8f5bc225b256f5c710b71ef17356b77d68 Mon Sep 17 00:00:00 2001
+From: Thierry Reding <treding@nvidia.com>
+Date: Wed, 19 Feb 2014 14:51:06 +0100
+Subject: [PATCH 1/5] tegra: Add channel, job, pushbuf and fence APIs
+
+These functions can be used to open channels to engines, manage job
+submissions, create push buffers to store command streams in and wait
+until jobs have been completed.
+
+Signed-off-by: Thierry Reding <treding@nvidia.com>
+---
+ tegra/Makefile.am        |   4 ++
+ tegra/channel.c          | 127 ++++++++++++++++++++++++++++++++++++
+ tegra/fence.c            |  71 ++++++++++++++++++++
+ tegra/job.c              | 166 +++++++++++++++++++++++++++++++++++++++++++++++
+ tegra/private.h          |  60 +++++++++++++++++
+ tegra/pushbuf.c          | 133 +++++++++++++++++++++++++++++++++++++
+ tegra/tegra-symbol-check |  14 ++++
+ tegra/tegra.c            |  58 +++++++++++++++++
+ tegra/tegra.h            |  53 +++++++++++++++
+ 9 files changed, 686 insertions(+)
+ create mode 100644 tegra/channel.c
+ create mode 100644 tegra/fence.c
+ create mode 100644 tegra/job.c
+ create mode 100644 tegra/pushbuf.c
+
+diff --git a/tegra/Makefile.am b/tegra/Makefile.am
+index fb40be55..f440c38c 100644
+--- a/tegra/Makefile.am
++++ b/tegra/Makefile.am
+@@ -12,6 +12,10 @@ libdrm_tegra_la_LDFLAGS = -version-number 0:0:0 -no-undefined
+ libdrm_tegra_la_LIBADD = ../libdrm.la @PTHREADSTUBS_LIBS@
+ 
+ libdrm_tegra_la_SOURCES = \
++	channel.c \
++	fence.c \
++	job.c \
++	pushbuf.c \
+ 	private.h \
+ 	tegra.c
+ 
+diff --git a/tegra/channel.c b/tegra/channel.c
+new file mode 100644
+index 00000000..2edd878e
+--- /dev/null
++++ b/tegra/channel.c
+@@ -0,0 +1,127 @@
++/*
++ * Copyright © 2012, 2013 Thierry Reding
++ * Copyright © 2013 Erik Faye-Lund
++ * Copyright © 2014 NVIDIA Corporation
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++
++#include <errno.h>
++#include <string.h>
++
++#include <xf86drm.h>
++
++#include "private.h"
++
++static int drm_tegra_channel_setup(struct drm_tegra_channel *channel)
++{
++	struct drm_tegra *drm = channel->drm;
++	struct drm_tegra_get_syncpt args;
++	int err;
++
++	memset(&args, 0, sizeof(args));
++	args.context = channel->context;
++	args.index = 0;
++
++	err = drmIoctl(drm->fd, DRM_IOCTL_TEGRA_GET_SYNCPT, &args);
++	if (err < 0)
++		return -errno;
++
++	channel->syncpt = args.id;
++
++	return 0;
++}
++
++int drm_tegra_channel_open(struct drm_tegra_channel **channelp,
++			   struct drm_tegra *drm,
++			   enum drm_tegra_class client)
++{
++	struct drm_tegra_open_channel args;
++	struct drm_tegra_channel *channel;
++	enum host1x_class class;
++	int err;
++
++	switch (client) {
++	case DRM_TEGRA_GR2D:
++		class = HOST1X_CLASS_GR2D;
++		break;
++
++	case DRM_TEGRA_GR3D:
++		class = HOST1X_CLASS_GR3D;
++		break;
++
++	default:
++		return -EINVAL;
++	}
++
++	channel = calloc(1, sizeof(*channel));
++	if (!channel)
++		return -ENOMEM;
++
++	channel->drm = drm;
++
++	memset(&args, 0, sizeof(args));
++	args.client = class;
++
++	err = drmIoctl(drm->fd, DRM_IOCTL_TEGRA_OPEN_CHANNEL, &args);
++	if (err < 0) {
++		free(channel);
++		return -errno;
++	}
++
++	channel->context = args.context;
++	channel->class = class;
++
++	err = drm_tegra_channel_setup(channel);
++	if (err < 0) {
++		free(channel);
++		return err;
++	}
++
++	*channelp = channel;
++
++	return 0;
++}
++
++int drm_tegra_channel_close(struct drm_tegra_channel *channel)
++{
++	struct drm_tegra_close_channel args;
++	struct drm_tegra *drm;
++	int err;
++
++	if (!channel)
++		return -EINVAL;
++
++	drm = channel->drm;
++
++	memset(&args, 0, sizeof(args));
++	args.context = channel->context;
++
++	err = drmIoctl(drm->fd, DRM_IOCTL_TEGRA_CLOSE_CHANNEL, &args);
++	if (err < 0)
++		return -errno;
++
++	free(channel);
++
++	return 0;
++}
+diff --git a/tegra/fence.c b/tegra/fence.c
+new file mode 100644
+index 00000000..023e230b
+--- /dev/null
++++ b/tegra/fence.c
+@@ -0,0 +1,71 @@
++/*
++ * Copyright © 2012, 2013 Thierry Reding
++ * Copyright © 2013 Erik Faye-Lund
++ * Copyright © 2014 NVIDIA Corporation
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++
++#include <errno.h>
++#include <string.h>
++
++#include <xf86drm.h>
++
++#include "private.h"
++
++int drm_tegra_fence_wait_timeout(struct drm_tegra_fence *fence,
++				 unsigned long timeout)
++{
++	struct drm_tegra_syncpt_wait args;
++	int err;
++
++	memset(&args, 0, sizeof(args));
++	args.id = fence->syncpt;
++	args.thresh = fence->value;
++	args.timeout = timeout;
++
++	while (true) {
++		err = drmIoctl(fence->drm->fd, DRM_IOCTL_TEGRA_SYNCPT_WAIT, &args);
++		if (err < 0) {
++			if (errno == EINTR)
++				continue;
++
++			drmMsg("DRM_IOCTL_TEGRA_SYNCPT_WAIT: %d\n", -errno);
++			return -errno;
++		}
++
++		break;
++	}
++
++	return 0;
++}
++
++int drm_tegra_fence_wait(struct drm_tegra_fence *fence)
++{
++	return drm_tegra_fence_wait_timeout(fence, -1);
++}
++
++void drm_tegra_fence_free(struct drm_tegra_fence *fence)
++{
++	free(fence);
++}
+diff --git a/tegra/job.c b/tegra/job.c
+new file mode 100644
+index 00000000..23e34c3f
+--- /dev/null
++++ b/tegra/job.c
+@@ -0,0 +1,166 @@
++/*
++ * Copyright © 2012, 2013 Thierry Reding
++ * Copyright © 2013 Erik Faye-Lund
++ * Copyright © 2014 NVIDIA Corporation
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++
++#include <errno.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include <xf86drm.h>
++
++#include "private.h"
++
++int drm_tegra_job_add_reloc(struct drm_tegra_job *job,
++			    const struct drm_tegra_reloc *reloc)
++{
++	struct drm_tegra_reloc *relocs;
++	size_t size;
++
++	size = (job->num_relocs + 1) * sizeof(*reloc);
++
++	relocs = realloc(job->relocs, size);
++	if (!reloc)
++		return -ENOMEM;
++
++	job->relocs = relocs;
++
++	job->relocs[job->num_relocs++] = *reloc;
++
++	return 0;
++}
++
++int drm_tegra_job_new(struct drm_tegra_job **jobp,
++		      struct drm_tegra_channel *channel)
++{
++	struct drm_tegra_job *job;
++
++	job = calloc(1, sizeof(*job));
++	if (!job)
++		return -ENOMEM;
++
++	DRMINITLISTHEAD(&job->pushbufs);
++	job->channel = channel;
++
++	*jobp = job;
++
++	return 0;
++}
++
++int drm_tegra_job_free(struct drm_tegra_job *job)
++{
++	struct drm_tegra_pushbuf_private *pushbuf;
++
++	if (!job)
++		return -EINVAL;
++
++	DRMLISTFOREACHENTRY(pushbuf, &job->pushbufs, list)
++		drm_tegra_pushbuf_free(&pushbuf->base);
++
++	free(job->relocs);
++	free(job);
++
++	return 0;
++}
++
++int drm_tegra_job_submit(struct drm_tegra_job *job,
++			 struct drm_tegra_fence **fencep)
++{
++	struct drm_tegra *drm = job->channel->drm;
++	struct drm_tegra_pushbuf_private *pushbuf;
++	struct drm_tegra_fence *fence = NULL;
++	struct drm_tegra_cmdbuf *cmdbufs;
++	struct drm_tegra_syncpt *syncpts;
++	struct drm_tegra_submit args;
++	unsigned int i = 0;
++	int err;
++
++	if (fencep) {
++		fence = calloc(1, sizeof(*fence));
++		if (!fence)
++			return -ENOMEM;
++	}
++
++	cmdbufs = calloc(job->num_pushbufs, sizeof(*cmdbufs));
++	if (!cmdbufs) {
++		free(fence);
++		return -ENOMEM;
++	}
++
++	DRMLISTFOREACHENTRY(pushbuf, &job->pushbufs, list) {
++		struct drm_tegra_cmdbuf *cmdbuf = &cmdbufs[i++];
++
++		cmdbuf->handle = pushbuf->bo->handle;
++		cmdbuf->offset = pushbuf->offset;
++		cmdbuf->words = pushbuf->base.ptr - pushbuf->start;
++	}
++
++	syncpts = calloc(1, sizeof(*syncpts));
++	if (!syncpts) {
++		free(cmdbufs);
++		free(fence);
++		return -ENOMEM;
++	}
++
++	syncpts[0].id = job->syncpt;
++	syncpts[0].incrs = job->increments;
++
++	memset(&args, 0, sizeof(args));
++	args.context = job->channel->context;
++	args.num_syncpts = 1;
++	args.num_cmdbufs = job->num_pushbufs;
++	args.num_relocs = job->num_relocs;
++	args.num_waitchks = 0;
++	args.waitchk_mask = 0;
++	args.timeout = 1000;
++
++	args.syncpts = (uintptr_t)syncpts;
++	args.cmdbufs = (uintptr_t)cmdbufs;
++	args.relocs = (uintptr_t)job->relocs;
++	args.waitchks = 0;
++
++	err = drmIoctl(drm->fd, DRM_IOCTL_TEGRA_SUBMIT, &args);
++	if (err < 0) {
++		free(syncpts);
++		free(cmdbufs);
++		free(fence);
++		return -errno;
++	}
++
++	if (fence) {
++		fence->syncpt = job->syncpt;
++		fence->value = args.fence;
++		fence->drm = drm;
++	}
++
++	if (fencep)
++		*fencep = fence;
++
++	free(syncpts);
++	free(cmdbufs);
++
++	return 0;
++}
+diff --git a/tegra/private.h b/tegra/private.h
+index bb6c1a51..1db7dda6 100644
+--- a/tegra/private.h
++++ b/tegra/private.h
+@@ -26,13 +26,28 @@
+ #define __DRM_TEGRA_PRIVATE_H__ 1
+ 
+ #include <stdbool.h>
++#include <stddef.h>
+ #include <stdint.h>
+ 
++#include <libdrm_lists.h>
+ #include <libdrm_macros.h>
+ #include <xf86atomic.h>
+ 
++#include "tegra_drm.h"
+ #include "tegra.h"
+ 
++#define container_of(ptr, type, member) ({				\
++		const typeof(((type *)0)->member) *__mptr = (ptr);	\
++		(type *)((char *)__mptr - offsetof(type, member));	\
++	})
++
++enum host1x_class {
++	HOST1X_CLASS_HOST1X = 0x01,
++	HOST1X_CLASS_GR2D = 0x51,
++	HOST1X_CLASS_GR2D_SB = 0x52,
++	HOST1X_CLASS_GR3D = 0x60,
++};
++
+ struct drm_tegra {
+ 	bool close;
+ 	int fd;
+@@ -44,8 +59,53 @@ struct drm_tegra_bo {
+ 	uint32_t offset;
+ 	uint32_t flags;
+ 	uint32_t size;
++	uint32_t name;
+ 	atomic_t ref;
+ 	void *map;
+ };
+ 
++struct drm_tegra_channel {
++	struct drm_tegra *drm;
++	enum host1x_class class;
++	uint64_t context;
++	uint32_t syncpt;
++};
++
++struct drm_tegra_fence {
++	struct drm_tegra *drm;
++	uint32_t syncpt;
++	uint32_t value;
++};
++
++struct drm_tegra_pushbuf_private {
++	struct drm_tegra_pushbuf base;
++	struct drm_tegra_job *job;
++	struct drm_tegra_bo *bo;
++	unsigned long offset;
++	drmMMListHead list;
++	uint32_t *start;
++};
++
++static inline struct drm_tegra_pushbuf_private *
++pushbuf_priv(struct drm_tegra_pushbuf *pb)
++{
++	return container_of(pb, struct drm_tegra_pushbuf_private, base);
++}
++
++struct drm_tegra_job {
++	struct drm_tegra_channel *channel;
++
++	unsigned int increments;
++	uint32_t syncpt;
++
++	struct drm_tegra_reloc *relocs;
++	unsigned int num_relocs;
++
++	unsigned int num_pushbufs;
++	drmMMListHead pushbufs;
++};
++
++int drm_tegra_job_add_reloc(struct drm_tegra_job *job,
++			    const struct drm_tegra_reloc *reloc);
++
+ #endif /* __DRM_TEGRA_PRIVATE_H__ */
+diff --git a/tegra/pushbuf.c b/tegra/pushbuf.c
+new file mode 100644
+index 00000000..2ffdbc0a
+--- /dev/null
++++ b/tegra/pushbuf.c
+@@ -0,0 +1,133 @@
++/*
++ * Copyright © 2012, 2013 Thierry Reding
++ * Copyright © 2013 Erik Faye-Lund
++ * Copyright © 2014 NVIDIA Corporation
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++
++#include <errno.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include "private.h"
++
++#define HOST1X_OPCODE_NONINCR(offset, count) \
++    ((0x2 << 28) | (((offset) & 0xfff) << 16) | ((count) & 0xffff))
++
++static inline unsigned long
++drm_tegra_pushbuf_get_offset(struct drm_tegra_pushbuf *pushbuf)
++{
++	struct drm_tegra_pushbuf_private *priv = pushbuf_priv(pushbuf);
++	struct drm_tegra_bo *bo = priv->bo;
++
++	return (unsigned long)pushbuf->ptr - (unsigned long)bo->map;
++}
++
++int drm_tegra_pushbuf_new(struct drm_tegra_pushbuf **pushbufp,
++			  struct drm_tegra_job *job,
++			  struct drm_tegra_bo *bo,
++			  unsigned long offset)
++{
++	struct drm_tegra_pushbuf_private *pushbuf;
++	void *ptr;
++	int err;
++
++	pushbuf = calloc(1, sizeof(*pushbuf));
++	if (!pushbuf)
++		return -ENOMEM;
++
++	pushbuf->bo = drm_tegra_bo_ref(bo);
++	DRMINITLISTHEAD(&pushbuf->list);
++	pushbuf->job = job;
++
++	err = drm_tegra_bo_map(bo, &ptr);
++	if (err < 0) {
++		drm_tegra_bo_unref(bo);
++		free(pushbuf);
++		return err;
++	}
++
++	pushbuf->start = pushbuf->base.ptr = (void*)((char*)ptr + offset);
++	pushbuf->offset = offset;
++
++	DRMLISTADD(&pushbuf->list, &job->pushbufs);
++	job->num_pushbufs++;
++
++	*pushbufp = &pushbuf->base;
++
++	return 0;
++}
++
++int drm_tegra_pushbuf_free(struct drm_tegra_pushbuf *pushbuf)
++{
++	struct drm_tegra_pushbuf_private *priv = pushbuf_priv(pushbuf);
++
++	if (!pushbuf)
++		return -EINVAL;
++
++	drm_tegra_bo_unmap(priv->bo);
++	drm_tegra_bo_unref(priv->bo);
++	DRMLISTDEL(&priv->list);
++	free(priv);
++
++	return 0;
++}
++
++int drm_tegra_pushbuf_relocate(struct drm_tegra_pushbuf *pushbuf,
++			       struct drm_tegra_bo *target,
++			       unsigned long offset,
++			       unsigned long shift)
++{
++	struct drm_tegra_pushbuf_private *priv = pushbuf_priv(pushbuf);
++	struct drm_tegra_reloc reloc;
++	int err;
++
++	memset(&reloc, 0, sizeof(reloc));
++	reloc.cmdbuf.handle = priv->bo->handle;
++	reloc.cmdbuf.offset = drm_tegra_pushbuf_get_offset(pushbuf);
++	reloc.target.handle = target->handle;
++	reloc.target.offset = offset;
++	reloc.shift = shift;
++
++	err = drm_tegra_job_add_reloc(priv->job, &reloc);
++	if (err < 0)
++		return err;
++
++	return 0;
++}
++
++int drm_tegra_pushbuf_sync(struct drm_tegra_pushbuf *pushbuf,
++			   enum drm_tegra_syncpt_cond cond)
++{
++	struct drm_tegra_pushbuf_private *priv = pushbuf_priv(pushbuf);
++
++	if (cond >= DRM_TEGRA_SYNCPT_COND_MAX)
++		return -EINVAL;
++
++	*pushbuf->ptr++ = HOST1X_OPCODE_NONINCR(0x0, 0x1);
++	*pushbuf->ptr++ = cond << 8 | priv->job->syncpt;
++	priv->job->increments++;
++
++	return 0;
++}
+diff --git a/tegra/tegra-symbol-check b/tegra/tegra-symbol-check
+index 420469f4..90b5b3cf 100755
+--- a/tegra/tegra-symbol-check
++++ b/tegra/tegra-symbol-check
+@@ -15,6 +15,8 @@ _fini
+ _init
+ drm_tegra_bo_get_flags
+ drm_tegra_bo_get_handle
++drm_tegra_bo_get_name
++drm_tegra_bo_from_name
+ drm_tegra_bo_get_tiling
+ drm_tegra_bo_map
+ drm_tegra_bo_new
+@@ -26,6 +28,18 @@ drm_tegra_bo_unref
+ drm_tegra_bo_wrap
+ drm_tegra_close
+ drm_tegra_new
++drm_tegra_channel_open
++drm_tegra_channel_close
++drm_tegra_job_new
++drm_tegra_job_free
++drm_tegra_job_submit
++drm_tegra_pushbuf_new
++drm_tegra_pushbuf_free
++drm_tegra_pushbuf_relocate
++drm_tegra_pushbuf_sync
++drm_tegra_fence_wait_timeout
++drm_tegra_fence_wait
++drm_tegra_fence_free
+ EOF
+ done)
+ 
+diff --git a/tegra/tegra.c b/tegra/tegra.c
+index f7dc89ad..8853d46d 100644
+--- a/tegra/tegra.c
++++ b/tegra/tegra.c
+@@ -190,6 +190,64 @@ int drm_tegra_bo_get_handle(struct drm_tegra_bo *bo, uint32_t *handle)
+ 	return 0;
+ }
+ 
++int drm_tegra_bo_get_name(struct drm_tegra_bo *bo, uint32_t *name)
++{
++	if (!bo || !name)
++		return -EINVAL;
++
++	if (!bo->name) {
++		struct drm_gem_flink args;
++		int err;
++
++		memset(&args, 0, sizeof(args));
++		args.handle = bo->handle;
++
++		err = drmIoctl(bo->drm->fd, DRM_IOCTL_GEM_FLINK, &args);
++		if (err < 0)
++			return -errno;
++
++		bo->name = args.name;
++	}
++
++	*name = bo->name;
++
++	return 0;
++}
++
++int drm_tegra_bo_from_name(struct drm_tegra_bo **bop, struct drm_tegra *drm,
++			   uint32_t name)
++{
++	struct drm_gem_open args;
++	struct drm_tegra_bo *bo;
++	int err;
++
++	if (!drm || !name || !bop)
++		return -EINVAL;
++
++	bo = calloc(1, sizeof(*bo));
++	if (!bo)
++		return -ENOMEM;
++
++	memset(&args, 0, sizeof(args));
++	args.name = name;
++
++	err = drmIoctl(drm->fd, DRM_IOCTL_GEM_OPEN, &args);
++	if (err < 0) {
++		free(bo);
++		return -errno;
++	}
++
++	atomic_set(&bo->ref, 1);
++	bo->handle = args.handle;
++	bo->flags = 0;
++	bo->size = args.size;
++	bo->drm = drm;
++
++	*bop = bo;
++
++	return 0;
++}
++
+ int drm_tegra_bo_map(struct drm_tegra_bo *bo, void **ptr)
+ {
+ 	struct drm_tegra *drm = bo->drm;
+diff --git a/tegra/tegra.h b/tegra/tegra.h
+index 31b0995a..29cc1af9 100644
+--- a/tegra/tegra.h
++++ b/tegra/tegra.h
+@@ -28,6 +28,11 @@
+ #include <stdint.h>
+ #include <stdlib.h>
+ 
++enum drm_tegra_class {
++	DRM_TEGRA_GR2D,
++	DRM_TEGRA_GR3D,
++};
++
+ struct drm_tegra_bo;
+ struct drm_tegra;
+ 
+@@ -41,6 +46,9 @@ int drm_tegra_bo_wrap(struct drm_tegra_bo **bop, struct drm_tegra *drm,
+ struct drm_tegra_bo *drm_tegra_bo_ref(struct drm_tegra_bo *bo);
+ void drm_tegra_bo_unref(struct drm_tegra_bo *bo);
+ int drm_tegra_bo_get_handle(struct drm_tegra_bo *bo, uint32_t *handle);
++int drm_tegra_bo_get_name(struct drm_tegra_bo *bo, uint32_t *name);
++int drm_tegra_bo_from_name(struct drm_tegra_bo **bop, struct drm_tegra *drm,
++			   uint32_t name);
+ int drm_tegra_bo_map(struct drm_tegra_bo *bo, void **ptr);
+ int drm_tegra_bo_unmap(struct drm_tegra_bo *bo);
+ 
+@@ -57,4 +65,49 @@ int drm_tegra_bo_get_tiling(struct drm_tegra_bo *bo,
+ int drm_tegra_bo_set_tiling(struct drm_tegra_bo *bo,
+ 			    const struct drm_tegra_bo_tiling *tiling);
+ 
++struct drm_tegra_channel;
++struct drm_tegra_job;
++
++struct drm_tegra_pushbuf {
++	uint32_t *ptr;
++};
++
++struct drm_tegra_fence;
++
++enum drm_tegra_syncpt_cond {
++	DRM_TEGRA_SYNCPT_COND_IMMEDIATE,
++	DRM_TEGRA_SYNCPT_COND_OP_DONE,
++	DRM_TEGRA_SYNCPT_COND_RD_DONE,
++	DRM_TEGRA_SYNCPT_COND_WR_SAFE,
++	DRM_TEGRA_SYNCPT_COND_MAX,
++};
++
++int drm_tegra_channel_open(struct drm_tegra_channel **channelp,
++			   struct drm_tegra *drm,
++			   enum drm_tegra_class client);
++int drm_tegra_channel_close(struct drm_tegra_channel *channel);
++
++int drm_tegra_job_new(struct drm_tegra_job **jobp,
++		      struct drm_tegra_channel *channel);
++int drm_tegra_job_free(struct drm_tegra_job *job);
++int drm_tegra_job_submit(struct drm_tegra_job *job,
++			 struct drm_tegra_fence **fencep);
++
++int drm_tegra_pushbuf_new(struct drm_tegra_pushbuf **pushbufp,
++			  struct drm_tegra_job *job,
++			  struct drm_tegra_bo *bo,
++			  unsigned long offset);
++int drm_tegra_pushbuf_free(struct drm_tegra_pushbuf *pushbuf);
++int drm_tegra_pushbuf_relocate(struct drm_tegra_pushbuf *pushbuf,
++			       struct drm_tegra_bo *target,
++			       unsigned long offset,
++			       unsigned long shift);
++int drm_tegra_pushbuf_sync(struct drm_tegra_pushbuf *pushbuf,
++			   enum drm_tegra_syncpt_cond cond);
++
++int drm_tegra_fence_wait_timeout(struct drm_tegra_fence *fence,
++				 unsigned long timeout);
++int drm_tegra_fence_wait(struct drm_tegra_fence *fence);
++void drm_tegra_fence_free(struct drm_tegra_fence *fence);
++
+ #endif /* __DRM_TEGRA_H__ */
+-- 
+2.12.0
+

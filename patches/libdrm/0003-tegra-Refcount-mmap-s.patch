@@ -1,0 +1,54 @@
+From e55e3dbe1b09676780e7fc6be5d0b364d2685f7f Mon Sep 17 00:00:00 2001
+From: Dmitry Osipenko <digetx@gmail.com>
+Date: Thu, 20 Oct 2016 18:48:46 +0300
+Subject: [PATCH 3/5] tegra: Refcount mmap's
+
+It's not uncommon that a BO could be mmap'ed several times, it's cleaner to
+do the bookkeeping in the libdrm.
+
+Signed-off-by: Dmitry Osipenko <digetx@gmail.com>
+---
+ tegra/private.h | 1 +
+ tegra/tegra.c   | 7 +++++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/tegra/private.h b/tegra/private.h
+index 1db7dda6..a6d09c9a 100644
+--- a/tegra/private.h
++++ b/tegra/private.h
+@@ -61,6 +61,7 @@ struct drm_tegra_bo {
+ 	uint32_t size;
+ 	uint32_t name;
+ 	atomic_t ref;
++	atomic_t mmap_ref;
+ 	void *map;
+ };
+ 
+diff --git a/tegra/tegra.c b/tegra/tegra.c
+index 8853d46d..6eeed380 100644
+--- a/tegra/tegra.c
++++ b/tegra/tegra.c
+@@ -272,6 +272,10 @@ int drm_tegra_bo_map(struct drm_tegra_bo *bo, void **ptr)
+ 			bo->map = NULL;
+ 			return -errno;
+ 		}
++
++		atomic_set(&bo->mmap_ref, 1);
++	} else {
++		atomic_inc(&bo->mmap_ref);
+ 	}
+ 
+ 	if (ptr)
+@@ -288,6 +292,9 @@ int drm_tegra_bo_unmap(struct drm_tegra_bo *bo)
+ 	if (!bo->map)
+ 		return 0;
+ 
++	if (!atomic_dec_and_test(&bo->mmap_ref))
++		return 0;
++
+ 	if (munmap(bo->map, bo->size))
+ 		return -errno;
+ 
+-- 
+2.12.0
+

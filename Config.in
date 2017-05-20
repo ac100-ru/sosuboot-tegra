@@ -1,4 +1,3 @@
-source "$BR2_EXTERNAL_SOSUBOOT_TEGRA_PATH/packages/cbootimage/Config.in"
 source "$BR2_EXTERNAL_SOSUBOOT_TEGRA_PATH/packages/abootimg/Config.in"
 source "$BR2_EXTERNAL_SOSUBOOT_TEGRA_PATH/packages/makeself/Config.in.host"
 source "$BR2_EXTERNAL_SOSUBOOT_TEGRA_PATH/packages/ac100-self-installers/Config.in"

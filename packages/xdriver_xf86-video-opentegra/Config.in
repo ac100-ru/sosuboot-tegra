@@ -5,6 +5,7 @@ config BR2_PACKAGE_XDRIVER_XF86_VIDEO_OPENTEGRA
         select BR2_PACKAGE_LIBDRM_TEGRA
         select BR2_PACKAGE_XPROTO_XPROTO
         select BR2_PACKAGE_XPROTO_RANDRPROTO
+        select BR2_PACKAGE_XPROTO_VIDEOPROTO
         select BR2_PACKAGE_XPROTO_XF86DRIPROTO
         help
           Open-source X.org graphics driver for NVIDIA Tegra
